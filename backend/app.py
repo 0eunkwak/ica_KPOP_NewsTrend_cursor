@@ -113,16 +113,25 @@ def get_content():
     """
     keyword = request.args.get('keyword', '').strip()
     
+    print(f"[API] 콘텐츠 조회 요청: keyword='{keyword}'")
+    print(f"[API] 캐시된 키워드: {list(cached_data.keys())}")
+    
     if keyword:
         # 특정 키워드만 조회
         if keyword in cached_data:
-            return jsonify(cached_data[keyword])
+            data = cached_data[keyword]
+            print(f"[API] 캐시에서 반환: {keyword}, 콘텐츠 수: {data.get('total_count', 0)}")
+            return jsonify(data)
         else:
             # 실시간 수집
+            print(f"[API] 실시간 수집 시작: {keyword}")
             result = collector.collect_all(keyword)
+            cached_data[keyword] = result
+            print(f"[API] 실시간 수집 완료: {keyword}, 콘텐츠 수: {result.get('total_count', 0)}")
             return jsonify(result)
     else:
         # 모든 키워드 반환
+        print(f"[API] 모든 키워드 반환: {len(cached_data)}개 키워드")
         return jsonify(cached_data)
 
 @app.route('/api/status', methods=['GET'])
@@ -147,15 +156,33 @@ def get_status():
 def refresh_data():
     """수동 데이터 갱신 API"""
     global tracked_keywords
-    if request.json and 'keywords' in request.json:
-        keywords = request.json.get('keywords', [])
-        if keywords:
-            tracked_keywords = keywords
+    
+    request_data = request.json or {}
+    keywords = request_data.get('keywords', [])
+    
+    print(f"[API] 데이터 갱신 요청: keywords={keywords}")
+    
+    if keywords:
+        tracked_keywords = keywords
+        print(f"[API] 추적 키워드 업데이트: {tracked_keywords}")
     else:
         keywords = tracked_keywords
+        print(f"[API] 기존 추적 키워드 사용: {keywords}")
     
-    collect_and_cache(keywords)
-    return jsonify({'message': '데이터 갱신 완료', 'keywords': keywords})
+    # 데이터 수집 (별도 스레드에서 실행하여 응답 지연 방지)
+    def collect_in_background():
+        print(f"[API] 백그라운드 데이터 수집 시작: {keywords}")
+        collect_and_cache(keywords)
+        print(f"[API] 백그라운드 데이터 수집 완료")
+    
+    collection_thread = threading.Thread(target=collect_in_background, daemon=True)
+    collection_thread.start()
+    
+    return jsonify({
+        'message': '데이터 갱신 시작됨', 
+        'keywords': keywords,
+        'status': 'collecting'
+    })
 
 @app.route('/api/keywords', methods=['GET', 'POST'])
 def manage_keywords():
@@ -163,19 +190,42 @@ def manage_keywords():
     global tracked_keywords
     
     if request.method == 'GET':
+        print(f"[API] 키워드 조회 요청: {tracked_keywords}")
         return jsonify({'keywords': tracked_keywords})
     
     elif request.method == 'POST':
         data = request.json
+        print(f"[API] 키워드 업데이트 요청: {data}")
+        
         if 'keywords' in data:
+            old_keywords = tracked_keywords.copy()
             tracked_keywords = data['keywords']
-            # 키워드 변경 시 데이터 수집
-            collect_and_cache(tracked_keywords)
-            return jsonify({'message': '키워드 업데이트 완료', 'keywords': tracked_keywords})
+            print(f"[API] 키워드 업데이트: {old_keywords} -> {tracked_keywords}")
+            
+            # 키워드 변경 시 데이터 수집 (별도 스레드에서 실행하여 응답 지연 방지)
+            def collect_in_background():
+                print(f"[API] 백그라운드 데이터 수집 시작: {tracked_keywords}")
+                collect_and_cache(tracked_keywords)
+                print(f"[API] 백그라운드 데이터 수집 완료")
+            
+            collection_thread = threading.Thread(target=collect_in_background, daemon=True)
+            collection_thread.start()
+            
+            return jsonify({
+                'message': '키워드 업데이트 완료', 
+                'keywords': tracked_keywords,
+                'status': 'collecting'
+            })
         else:
             return jsonify({'error': 'keywords 필드가 필요합니다'}), 400
 
 if __name__ == '__main__':
-    print(f"서버 시작: http://localhost:{Config.PORT}")
-    print(f"자동 갱신 주기: {Config.UPDATE_INTERVAL}분")
-    app.run(host='0.0.0.0', port=Config.PORT, debug=Config.DEBUG)
+    try:
+        print(f"\n서버 시작: http://localhost:{Config.PORT}")
+        print(f"자동 갱신 주기: {Config.UPDATE_INTERVAL}분")
+        print("서버가 시작되었습니다. 브라우저에서 http://localhost:5000 에 접속하세요.\n")
+        app.run(host='127.0.0.1', port=Config.PORT, debug=Config.DEBUG, use_reloader=False)
+    except Exception as e:
+        print(f"\n[ERROR] 서버 시작 실패: {e}")
+        import traceback
+        traceback.print_exc()
