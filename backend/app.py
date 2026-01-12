@@ -51,8 +51,14 @@ collector = DataCollector()
 # 캐시된 데이터
 cached_data = {}
 
-# 추적 중인 키워드 (기본값은 Config에서 가져옴)
-tracked_keywords = Config.DEFAULT_KEYWORDS.copy()
+# 추적 중인 키워드 (기본값은 Config에서 가져옴, 정규화)
+try:
+    from backend.keyword_mapper import normalize_keyword
+except ImportError:
+    from keyword_mapper import normalize_keyword
+
+# 기본 키워드를 정규화
+tracked_keywords = [normalize_keyword(kw) for kw in Config.DEFAULT_KEYWORDS]
 
 def collect_and_cache(keywords):
     """데이터 수집 및 캐시 업데이트"""
@@ -163,8 +169,23 @@ def refresh_data():
     print(f"[API] 데이터 갱신 요청: keywords={keywords}")
     
     if keywords:
-        tracked_keywords = keywords
+        # 키워드 정규화
+        try:
+            from backend.keyword_mapper import normalize_keyword
+        except ImportError:
+            from keyword_mapper import normalize_keyword
+        
+        normalized_keywords = []
+        for kw in keywords:
+            if isinstance(kw, dict) and 'en' in kw:
+                normalized_keywords.append(kw)
+            else:
+                normalized = normalize_keyword(str(kw))
+                normalized_keywords.append(normalized)
+        
+        tracked_keywords = normalized_keywords
         print(f"[API] 추적 키워드 업데이트: {tracked_keywords}")
+        keywords = normalized_keywords
     else:
         keywords = tracked_keywords
         print(f"[API] 기존 추적 키워드 사용: {keywords}")
@@ -199,7 +220,21 @@ def manage_keywords():
         
         if 'keywords' in data:
             old_keywords = tracked_keywords.copy()
-            tracked_keywords = data['keywords']
+            # 키워드를 정규화 (문자열 또는 객체 모두 처리)
+            try:
+                from backend.keyword_mapper import normalize_keyword
+            except ImportError:
+                from keyword_mapper import normalize_keyword
+            
+            normalized_keywords = []
+            for kw in data['keywords']:
+                if isinstance(kw, dict) and 'en' in kw:
+                    normalized_keywords.append(kw)
+                else:
+                    normalized = normalize_keyword(str(kw))
+                    normalized_keywords.append(normalized)
+            
+            tracked_keywords = normalized_keywords
             print(f"[API] 키워드 업데이트: {old_keywords} -> {tracked_keywords}")
             
             # 키워드 변경 시 데이터 수집 (별도 스레드에서 실행하여 응답 지연 방지)
