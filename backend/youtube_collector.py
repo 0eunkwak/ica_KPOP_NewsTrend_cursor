@@ -19,11 +19,17 @@ class YouTubeCollector:
         self.api_key = Config.YOUTUBE_API_KEY
         self.youtube = None
         
-        if self.api_key:
-            try:
-                self.youtube = build('youtube', 'v3', developerKey=self.api_key)
-            except Exception as e:
-                print(f"YouTube API 초기화 실패: {e}")
+        if not self.api_key:
+            print("❌ YouTube API 키가 설정되지 않았습니다. .env 파일에 YOUTUBE_API_KEY를 설정하세요.")
+            return
+        
+        try:
+            self.youtube = build('youtube', 'v3', developerKey=self.api_key)
+            print(f"✅ YouTube API 초기화 성공 (키 길이: {len(self.api_key)} 문자)")
+        except Exception as e:
+            print(f"❌ YouTube API 초기화 실패: {e}")
+            import traceback
+            traceback.print_exc()
     
     def search(self, keyword, max_results=50):
         """
@@ -37,10 +43,11 @@ class YouTubeCollector:
             list: 검색 결과 리스트
         """
         if not self.youtube:
-            print("YouTube API가 초기화되지 않았습니다.")
+            print(f"❌ YouTube API가 초기화되지 않았습니다. 키워드: {keyword}")
             return []
         
         try:
+            print(f"🔍 YouTube 검색 시작: '{keyword}'")
             # 24시간 전 시간 계산
             published_after = (datetime.now() - timedelta(hours=24)).isoformat() + 'Z'
             
@@ -56,6 +63,9 @@ class YouTubeCollector:
             )
             
             response = request.execute()
+            
+            total_items = len(response.get('items', []))
+            print(f"📊 YouTube API 응답: {total_items}개 항목 수신")
             
             results = []
             for item in response.get('items', []):
@@ -79,11 +89,17 @@ class YouTubeCollector:
                     }
                     results.append(video_data)
             
+            print(f"✅ YouTube 검색 완료: '{keyword}' - {len(results)}개 결과 (24시간 이내)")
             return results
             
         except HttpError as e:
-            print(f"YouTube API 오류: {e}")
+            error_details = e.error_details if hasattr(e, 'error_details') else []
+            print(f"❌ YouTube API HttpError: {e.resp.status} - {e.content}")
+            if error_details:
+                print(f"   상세: {error_details}")
             return []
         except Exception as e:
-            print(f"유튜브 검색 중 오류 발생: {e}")
+            print(f"❌ 유튜브 검색 중 오류 발생: {e}")
+            import traceback
+            traceback.print_exc()
             return []
