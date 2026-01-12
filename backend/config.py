@@ -13,9 +13,9 @@ env_path = project_root / '.env'
 # .env 파일 로드
 if env_path.exists():
     load_dotenv(dotenv_path=env_path)
-    print(f"✅ .env 파일 로드 완료: {env_path}")
+    print(f"[OK] .env 파일 로드 완료: {env_path}")
 else:
-    print(f"⚠️ .env 파일을 찾을 수 없습니다: {env_path}")
+    print(f"[WARNING] .env 파일을 찾을 수 없습니다: {env_path}")
     # 현재 디렉토리에서도 시도
     load_dotenv()
 
@@ -31,13 +31,13 @@ class Config:
     def print_api_status(cls):
         """API 키 로드 상태 출력"""
         print("\n=== API 키 로드 상태 ===")
-        print(f"YouTube API Key: {'✅ 설정됨' if cls.YOUTUBE_API_KEY else '❌ 미설정'}")
+        print(f"YouTube API Key: {'[OK] 설정됨' if cls.YOUTUBE_API_KEY else '[ERROR] 미설정'}")
         if cls.YOUTUBE_API_KEY:
             print(f"  (길이: {len(cls.YOUTUBE_API_KEY)} 문자, 시작: {cls.YOUTUBE_API_KEY[:10]}...)")
-        print(f"Naver Client ID: {'✅ 설정됨' if cls.NAVER_CLIENT_ID else '❌ 미설정'}")
+        print(f"Naver Client ID: {'[OK] 설정됨' if cls.NAVER_CLIENT_ID else '[ERROR] 미설정'}")
         if cls.NAVER_CLIENT_ID:
             print(f"  (길이: {len(cls.NAVER_CLIENT_ID)} 문자)")
-        print(f"Naver Client Secret: {'✅ 설정됨' if cls.NAVER_CLIENT_SECRET else '❌ 미설정'}")
+        print(f"Naver Client Secret: {'[OK] 설정됨' if cls.NAVER_CLIENT_SECRET else '[ERROR] 미설정'}")
         if cls.NAVER_CLIENT_SECRET:
             print(f"  (길이: {len(cls.NAVER_CLIENT_SECRET)} 문자)")
         print("=" * 25 + "\n")
