@@ -171,11 +171,80 @@ function showPage(page) {
 function loadKeywords() {
     const saved = localStorage.getItem('trackedKeywords');
     if (saved) {
-        trackedKeywords = JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        // 기존 문자열 배열을 객체 배열로 변환
+        if (parsed.length > 0 && typeof parsed[0] === 'string') {
+            trackedKeywords = parsed.map(k => normalizeKeyword(k));
+        } else {
+            trackedKeywords = parsed;
+        }
     } else {
-        // 기본 키워드
-        trackedKeywords = ['BTS', 'BLACKPINK', 'NewJeans', 'IVE', 'LE SSERAFIM'];
+        // 기본 키워드 (영문/한글 쌍)
+        trackedKeywords = [
+            { en: 'BTS', ko: '방탄소년단' },
+            { en: 'BLACKPINK', ko: '블랙핑크' },
+            { en: 'NewJeans', ko: '뉴진스' },
+            { en: 'IVE', ko: '아이브' },
+            { en: 'LE SSERAFIM', ko: '르세라핌' }
+        ];
         saveKeywords();
+    }
+}
+
+// 키워드 정규화 (영문/한글 쌍으로 변환)
+function normalizeKeyword(keyword) {
+    if (typeof keyword === 'object' && keyword.en && keyword.ko) {
+        return keyword; // 이미 정규화됨
+    }
+    
+    const keywordStr = typeof keyword === 'string' ? keyword.trim() : String(keyword);
+    
+    // 간단한 키워드 매핑
+    const keywordMap = {
+        'BTS': '방탄소년단',
+        'BLACKPINK': '블랙핑크',
+        'BLACK PINK': '블랙핑크',
+        'NewJeans': '뉴진스',
+        'NEW JEANS': '뉴진스',
+        'IVE': '아이브',
+        'LE SSERAFIM': '르세라핌',
+        'LE SERAFIM': '르세라핌',
+        'LESSERAFIM': '르세라핌',
+        'aespa': '에스파',
+        'AESPA': '에스파',
+        'ITZY': '있지',
+        'TWICE': '트와이스',
+        'Jennie': '제니',
+        'JENNIE': '제니',
+        'Jisoo': '지수',
+        'JISOO': '지수',
+        'Rose': '로제',
+        'ROSE': '로제',
+        'Lisa': '리사',
+        'LISA': '리사',
+    };
+    
+    // 한글 포함 여부 확인
+    const hasKorean = /[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/.test(keywordStr);
+    
+    if (hasKorean) {
+        // 한글 키워드인 경우
+        const ko = keywordStr;
+        // 역매핑 시도
+        let en = null;
+        for (const [enKey, koValue] of Object.entries(keywordMap)) {
+            if (koValue === ko) {
+                en = enKey;
+                break;
+            }
+        }
+        if (!en) en = ko; // 매핑이 없으면 영문도 한글과 동일
+        return { en, ko };
+    } else {
+        // 영문 키워드인 경우
+        const en = keywordStr;
+        const ko = keywordMap[en.toUpperCase()] || keywordMap[en] || en;
+        return { en, ko };
     }
 }
 
@@ -197,16 +266,27 @@ async function handleAddKeyword() {
         return;
     }
     
-    if (trackedKeywords.includes(keyword)) {
-        console.warn('[KEYWORD] 중복 키워드:', keyword);
+    // 키워드 정규화
+    const normalizedKeyword = normalizeKeyword(keyword);
+    const keywordDisplay = normalizedKeyword.en || normalizedKeyword.ko;
+    
+    // 중복 확인 (영문 또는 한글이 일치하는지 확인)
+    const isDuplicate = trackedKeywords.some(k => 
+        (k.en && k.en === normalizedKeyword.en) || 
+        (k.ko && k.ko === normalizedKeyword.ko) ||
+        (typeof k === 'string' && (k === normalizedKeyword.en || k === normalizedKeyword.ko))
+    );
+    
+    if (isDuplicate) {
+        console.warn('[KEYWORD] 중복 키워드:', normalizedKeyword);
         showKeywordError('This keyword is already added');
         return;
     }
     
-    console.log('[KEYWORD] 새 키워드 추가:', keyword);
+    console.log('[KEYWORD] 새 키워드 추가:', normalizedKeyword);
     
     // 키워드 추가
-    trackedKeywords.push(keyword);
+    trackedKeywords.push(normalizedKeyword);
     saveKeywords();
     
     // 폼 초기화
@@ -238,8 +318,16 @@ async function handleAddKeyword() {
 
 // 키워드 삭제 처리
 function handleDeleteKeyword(keyword) {
-    if (confirm(`Are you sure you want to remove "${keyword}"?`)) {
-        trackedKeywords = trackedKeywords.filter(k => k !== keyword);
+    const keywordDisplay = typeof keyword === 'string' ? keyword : (keyword.en || keyword.ko);
+    
+    if (confirm(`Are you sure you want to remove "${keywordDisplay}"?`)) {
+        trackedKeywords = trackedKeywords.filter(k => {
+            if (typeof k === 'string') {
+                return k !== keyword && k !== keywordDisplay;
+            }
+            return (k.en !== keyword && k.ko !== keyword) && 
+                   (k.en !== keywordDisplay && k.ko !== keywordDisplay);
+        });
         saveKeywords();
         renderKeywordsList();
         
@@ -262,12 +350,19 @@ function renderKeywordsList() {
         keywordsList.parentElement.classList.remove('hidden');
         
         trackedKeywords.forEach(keyword => {
+            // 키워드 정규화
+            const normalized = normalizeKeyword(keyword);
+            const keywordDisplay = normalized.en || normalized.ko;
+            const keywordFull = normalized.ko && normalized.ko !== normalized.en 
+                ? `${normalized.en} (${normalized.ko})` 
+                : keywordDisplay;
+            
             const row = document.createElement('tr');
             row.className = 'hover:bg-gray-50 dark:hover:bg-dark-sidebar transition-colors';
             
             row.innerHTML = `
                 <td class="px-6 py-4 whitespace-nowrap">
-                    <div class="text-sm font-medium text-gray-900 dark:text-gray-100">${escapeHtml(keyword)}</div>
+                    <div class="text-sm font-medium text-gray-900 dark:text-gray-100">${escapeHtml(keywordFull)}</div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                     <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400">
@@ -279,7 +374,7 @@ function renderKeywordsList() {
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <button 
-                        onclick="handleDeleteKeyword('${escapeHtml(keyword)}')" 
+                        onclick="handleDeleteKeyword(${JSON.stringify(normalized).replace(/"/g, '&quot;')})" 
                         class="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 transition-colors"
                     >
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -305,12 +400,20 @@ async function syncKeywordsToBackend() {
     console.log('[SYNC] 백엔드 키워드 동기화 시작:', trackedKeywords);
     
     try {
+        // 키워드를 백엔드 형식으로 변환 (문자열 배열 또는 객체 배열)
+        const keywordsForBackend = trackedKeywords.map(k => {
+            if (typeof k === 'object' && k.en) {
+                return k; // 이미 객체 형식
+            }
+            return normalizeKeyword(k); // 문자열인 경우 정규화
+        });
+        
         // 1. 키워드 업데이트
         console.log('[SYNC] 1단계: 키워드 업데이트 API 호출');
         const keywordsResponse = await fetch('/api/keywords', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ keywords: trackedKeywords })
+            body: JSON.stringify({ keywords: keywordsForBackend })
         });
         
         if (!keywordsResponse.ok) {
@@ -321,12 +424,12 @@ async function syncKeywordsToBackend() {
         console.log('[SYNC] 키워드 업데이트 응답:', keywordsData);
         
         // 2. 데이터 수집 트리거
-        if (trackedKeywords.length > 0) {
+        if (keywordsForBackend.length > 0) {
             console.log('[SYNC] 2단계: 데이터 수집 API 호출');
             const refreshResponse = await fetch('/api/refresh', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ keywords: trackedKeywords })
+                body: JSON.stringify({ keywords: keywordsForBackend })
             });
             
             if (!refreshResponse.ok) {
@@ -363,8 +466,13 @@ async function loadAllContent(forceRefresh = false) {
     showLoading();
     
     try {
-        // trackedKeywords 사용
-        const keywordsToLoad = trackedKeywords.length > 0 ? trackedKeywords : ['BTS', 'BLACKPINK'];
+        // trackedKeywords 사용 (기본값도 객체 형식으로)
+        let keywordsToLoad = trackedKeywords.length > 0 
+            ? trackedKeywords.map(k => normalizeKeyword(k))
+            : [
+                { en: 'BTS', ko: '방탄소년단' },
+                { en: 'BLACKPINK', ko: '블랙핑크' }
+            ];
         console.log('[LOAD] 로드할 키워드:', keywordsToLoad);
         
         let response;
@@ -558,6 +666,11 @@ function displayContent(data) {
     
     hideEmpty();
     
+    // 통계 계산
+    const stats = calculateStats(data.contents);
+    console.log('[DISPLAY] 통계:', stats);
+    updateStatsDisplay(stats);
+    
     // 콘텐츠 카드 생성
     console.log('[DISPLAY] 카드 생성 시작, 콘텐츠 수:', data.contents.length);
     contents.innerHTML = '';
@@ -572,21 +685,85 @@ function displayContent(data) {
     console.log('[DISPLAY] 콘텐츠 표시 완료');
 }
 
+// 통계 계산
+function calculateStats(contents) {
+    const stats = {
+        total: contents.length,
+        news: 0,
+        video: 0,
+        byKeyword: {}
+    };
+    
+    contents.forEach(content => {
+        // 타입별 카운트
+        if (content.type === 'news') {
+            stats.news++;
+        } else if (content.type === 'video') {
+            stats.video++;
+        }
+        
+        // 키워드별 카운트
+        const keyword = content.keyword_display || content.keyword || 'Unknown';
+        if (!stats.byKeyword[keyword]) {
+            stats.byKeyword[keyword] = { total: 0, news: 0, video: 0 };
+        }
+        stats.byKeyword[keyword].total++;
+        if (content.type === 'news') {
+            stats.byKeyword[keyword].news++;
+        } else if (content.type === 'video') {
+            stats.byKeyword[keyword].video++;
+        }
+    });
+    
+    return stats;
+}
+
+// 통계 표시 업데이트
+function updateStatsDisplay(stats) {
+    console.log('[STATS] 통계 업데이트:', stats);
+    
+    // 필터 탭에 개수 표시
+    const allCount = document.getElementById('filter-count-all');
+    const newsCount = document.getElementById('filter-count-news');
+    const videoCount = document.getElementById('filter-count-video');
+    
+    if (allCount) {
+        allCount.textContent = stats.total || '';
+        allCount.style.display = stats.total > 0 ? 'inline-block' : 'none';
+    }
+    if (newsCount) {
+        newsCount.textContent = stats.news || '';
+        newsCount.style.display = stats.news > 0 ? 'inline-block' : 'none';
+    }
+    if (videoCount) {
+        videoCount.textContent = stats.video || '';
+        videoCount.style.display = stats.video > 0 ? 'inline-block' : 'none';
+    }
+}
+
 // 콘텐츠 필터링
 function filterContent() {
+    console.log('[FILTER] 콘텐츠 필터링 시작, 필터:', currentFilter);
     const cards = contents.querySelectorAll('.content-card');
+    let visibleCount = 0;
+    
     cards.forEach(card => {
         const type = card.dataset.type;
         const shouldShow = currentFilter === 'all' || 
                           (currentFilter === 'news' && type === 'news') ||
                           (currentFilter === 'video' && type === 'video');
         card.style.display = shouldShow ? 'block' : 'none';
+        if (shouldShow) visibleCount++;
     });
     
+    console.log('[FILTER] 필터링 완료, 표시된 카드:', visibleCount, '/', cards.length);
+    
     // 필터링 후 빈 상태 확인
-    const visibleCards = Array.from(cards).filter(card => card.style.display !== 'none');
-    if (visibleCards.length === 0 && cards.length > 0) {
+    if (visibleCount === 0 && cards.length > 0) {
+        console.warn('[FILTER] 필터링 후 표시할 콘텐츠 없음');
         showEmpty();
+    } else {
+        hideEmpty();
     }
 }
 
@@ -596,6 +773,10 @@ function createContentCard(content, index) {
     card.className = 'content-card';
     card.dataset.type = content.type;
     card.style.animationDelay = `${index * 0.05}s`;
+    
+    // 키워드 정보 추가
+    const keywordInfo = content.keyword_display || content.keyword || '';
+    const keywordBadge = keywordInfo ? `<span class="inline-block px-2 py-0.5 text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded mb-2">${escapeHtml(keywordInfo)}</span>` : '';
     
     const thumbnail = content.thumbnail 
         ? `<img src="${content.thumbnail}" alt="${escapeHtml(content.title)}" class="card-thumbnail" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'card-thumbnail-placeholder\\'>${content.type === 'video' ? '▶️' : '📰'}</div>'">`
@@ -611,6 +792,7 @@ function createContentCard(content, index) {
             <div class="card-badge ${badgeClass}">${badgeText}</div>
         </div>
         <div class="card-body">
+            ${keywordBadge}
             <h3 class="card-title">${escapeHtml(content.title)}</h3>
             <div class="card-source">
                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
