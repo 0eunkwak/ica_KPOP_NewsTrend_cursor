@@ -42,6 +42,9 @@ def styles():
 def script():
     return send_from_directory('../frontend', 'script.js')
 
+# API 키 상태 확인
+Config.print_api_status()
+
 # 데이터 수집기 인스턴스
 collector = DataCollector()
 
@@ -132,7 +135,12 @@ def get_status():
         'update_interval_minutes': Config.UPDATE_INTERVAL,
         'cached_keywords': list(cached_data.keys()),
         'total_cached_contents': total_contents,
-        'last_update': time.time()
+        'last_update': time.time(),
+        'api_keys': {
+            'youtube': 'configured' if Config.YOUTUBE_API_KEY else 'missing',
+            'naver_id': 'configured' if Config.NAVER_CLIENT_ID else 'missing',
+            'naver_secret': 'configured' if Config.NAVER_CLIENT_SECRET else 'missing'
+        }
     })
 
 @app.route('/api/refresh', methods=['POST'])
