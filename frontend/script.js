@@ -3,12 +3,15 @@ let currentKeyword = '';
 let allData = {};
 let currentFilter = 'all';
 let autoRefreshInterval = null;
+let trackedKeywords = [];
+let currentPage = 'dashboard'; // 'dashboard' or 'keywords'
 
 // DOM 요소
 const sidebar = document.getElementById('sidebar');
 const mobileMenuBtn = document.getElementById('mobile-menu-btn');
 const mobileOverlay = document.getElementById('mobile-overlay');
 const themeToggle = document.getElementById('theme-toggle');
+const themeToggleKeywords = document.getElementById('theme-toggle-keywords');
 const sunIcon = document.getElementById('sun-icon');
 const moonIcon = document.getElementById('moon-icon');
 const refreshBtn = document.getElementById('refreshBtn');
@@ -17,11 +20,25 @@ const loading = document.getElementById('loading');
 const emptyState = document.getElementById('emptyState');
 const artistSelect = document.getElementById('artist-select');
 const filterTabs = document.querySelectorAll('.filter-tab');
+const dashboardContent = document.getElementById('dashboard-content');
+const keywordsContent = document.getElementById('keywords-content');
+const dashboardHeader = document.getElementById('dashboard-header');
+const keywordsHeader = document.getElementById('keywords-header');
+const addKeywordBtn = document.getElementById('add-keyword-btn');
+const addKeywordForm = document.getElementById('add-keyword-form');
+const keywordInput = document.getElementById('keyword-input');
+const submitKeywordBtn = document.getElementById('submit-keyword-btn');
+const cancelKeywordBtn = document.getElementById('cancel-keyword-btn');
+const keywordsList = document.getElementById('keywords-list');
+const keywordsEmpty = document.getElementById('keywords-empty');
+const keywordError = document.getElementById('keyword-error');
 
 // 초기화
 document.addEventListener('DOMContentLoaded', () => {
     initDarkMode();
+    loadKeywords();
     setupEventListeners();
+    showPage('dashboard');
     loadAllContent();
     startAutoRefresh();
 });
@@ -87,12 +104,191 @@ function setupEventListeners() {
     document.getElementById('menu-dashboard').addEventListener('click', () => {
         document.querySelectorAll('.menu-item').forEach(item => item.classList.remove('active'));
         document.getElementById('menu-dashboard').classList.add('active');
+        showPage('dashboard');
     });
     
     document.getElementById('menu-keywords').addEventListener('click', () => {
         document.querySelectorAll('.menu-item').forEach(item => item.classList.remove('active'));
         document.getElementById('menu-keywords').classList.add('active');
+        showPage('keywords');
     });
+
+    // 키워드 추가 관련
+    addKeywordBtn.addEventListener('click', () => {
+        addKeywordForm.classList.remove('hidden');
+        keywordInput.focus();
+    });
+
+    cancelKeywordBtn.addEventListener('click', () => {
+        addKeywordForm.classList.add('hidden');
+        keywordInput.value = '';
+        keywordError.classList.add('hidden');
+    });
+
+    submitKeywordBtn.addEventListener('click', handleAddKeyword);
+    keywordInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            handleAddKeyword();
+        }
+    });
+
+    // Keywords 페이지의 다크모드 토글
+    if (themeToggleKeywords) {
+        themeToggleKeywords.addEventListener('click', toggleDarkMode);
+    }
+}
+
+// 페이지 전환
+function showPage(page) {
+    currentPage = page;
+    
+    if (page === 'dashboard') {
+        dashboardContent.classList.remove('hidden');
+        keywordsContent.classList.add('hidden');
+        dashboardHeader.classList.remove('hidden');
+        keywordsHeader.classList.add('hidden');
+    } else if (page === 'keywords') {
+        dashboardContent.classList.add('hidden');
+        keywordsContent.classList.remove('hidden');
+        dashboardHeader.classList.add('hidden');
+        keywordsHeader.classList.remove('hidden');
+        renderKeywordsList();
+    }
+}
+
+// 키워드 로드 (localStorage)
+function loadKeywords() {
+    const saved = localStorage.getItem('trackedKeywords');
+    if (saved) {
+        trackedKeywords = JSON.parse(saved);
+    } else {
+        // 기본 키워드
+        trackedKeywords = ['BTS', 'BLACKPINK', 'NewJeans', 'IVE', 'LE SSERAFIM'];
+        saveKeywords();
+    }
+}
+
+// 키워드 저장 (localStorage)
+function saveKeywords() {
+    localStorage.setItem('trackedKeywords', JSON.stringify(trackedKeywords));
+    // 백엔드에 키워드 동기화
+    syncKeywordsToBackend();
+}
+
+// 키워드 추가 처리
+function handleAddKeyword() {
+    const keyword = keywordInput.value.trim();
+    
+    if (!keyword) {
+        showKeywordError('Please enter a keyword');
+        return;
+    }
+    
+    if (trackedKeywords.includes(keyword)) {
+        showKeywordError('This keyword is already added');
+        return;
+    }
+    
+    // 키워드 추가
+    trackedKeywords.push(keyword);
+    saveKeywords();
+    
+    // 폼 초기화
+    keywordInput.value = '';
+    addKeywordForm.classList.add('hidden');
+    keywordError.classList.add('hidden');
+    
+    // 목록 업데이트
+    renderKeywordsList();
+    
+    // 데이터 로드
+    loadContent(keyword);
+}
+
+// 키워드 삭제 처리
+function handleDeleteKeyword(keyword) {
+    if (confirm(`Are you sure you want to remove "${keyword}"?`)) {
+        trackedKeywords = trackedKeywords.filter(k => k !== keyword);
+        saveKeywords();
+        renderKeywordsList();
+        
+        // Dashboard로 전환
+        if (currentPage === 'keywords' && trackedKeywords.length === 0) {
+            showPage('dashboard');
+        }
+    }
+}
+
+// 키워드 목록 렌더링
+function renderKeywordsList() {
+    keywordsList.innerHTML = '';
+    
+    if (trackedKeywords.length === 0) {
+        keywordsEmpty.classList.remove('hidden');
+        keywordsList.parentElement.classList.add('hidden');
+    } else {
+        keywordsEmpty.classList.add('hidden');
+        keywordsList.parentElement.classList.remove('hidden');
+        
+        trackedKeywords.forEach(keyword => {
+            const row = document.createElement('tr');
+            row.className = 'hover:bg-gray-50 dark:hover:bg-dark-sidebar transition-colors';
+            
+            row.innerHTML = `
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <div class="text-sm font-medium text-gray-900 dark:text-gray-100">${escapeHtml(keyword)}</div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400">
+                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        Active
+                    </span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <button 
+                        onclick="handleDeleteKeyword('${escapeHtml(keyword)}')" 
+                        class="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 transition-colors"
+                    >
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                    </button>
+                </td>
+            `;
+            
+            keywordsList.appendChild(row);
+        });
+    }
+}
+
+// 키워드 오류 표시
+function showKeywordError(message) {
+    keywordError.textContent = message;
+    keywordError.classList.remove('hidden');
+}
+
+// 백엔드에 키워드 동기화
+async function syncKeywordsToBackend() {
+    try {
+        await fetch('/api/keywords', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ keywords: trackedKeywords })
+        });
+        
+        // 키워드 기반으로 데이터 수집
+        if (trackedKeywords.length > 0) {
+            await fetch('/api/refresh', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ keywords: trackedKeywords })
+            });
+        }
+    } catch (error) {
+        console.error('키워드 동기화 오류:', error);
+    }
 }
 
 // 새로고침 처리
@@ -109,11 +305,14 @@ async function loadAllContent(forceRefresh = false) {
     showLoading();
     
     try {
+        // trackedKeywords 사용
+        const keywordsToLoad = trackedKeywords.length > 0 ? trackedKeywords : ['BTS', 'BLACKPINK'];
+        
         const url = forceRefresh ? '/api/refresh' : '/api/content';
         const options = forceRefresh ? {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ keywords: [] })
+            body: JSON.stringify({ keywords: keywordsToLoad })
         } : {};
         
         const response = await fetch(url, options);
@@ -341,3 +540,6 @@ async function checkStatus() {
 
 // 주기적으로 상태 확인
 setInterval(checkStatus, 5 * 60 * 1000); // 5분마다
+
+// 전역 함수 (HTML에서 호출)
+window.handleDeleteKeyword = handleDeleteKeyword;
