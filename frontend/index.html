@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ko" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K-POP SCAN - Latest Feed</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        'dark-bg': '#0F0F1E',
+                        'dark-sidebar': '#1A1A2E',
+                        'dark-card': '#1E1E2E',
+                        'dark-border': '#2A2A3E',
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body class="font-inter bg-white dark:bg-dark-bg text-gray-900 dark:text-gray-100 transition-colors duration-300">
+    <div class="flex h-screen overflow-hidden">
+        <!-- 사이드바 -->
+        <aside id="sidebar" class="w-60 bg-gray-50 dark:bg-dark-sidebar border-r border-gray-200 dark:border-dark-border flex flex-col fixed lg:static h-full z-50 transform transition-transform duration-300 lg:translate-x-0 -translate-x-full">
+            <!-- 로고 -->
+            <div class="p-6 border-b border-gray-200 dark:border-dark-border">
+                <h1 class="text-2xl font-bold bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">
+                    ((o)) K-POP SCAN
+                </h1>
+            </div>
+
+            <!-- 메뉴 -->
+            <nav class="flex-1 p-4 space-y-2">
+                <button id="menu-dashboard" class="menu-item active w-full flex items-center gap-3 py-3 px-4 rounded-xl text-left transition-all duration-300">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path>
+                    </svg>
+                    <span class="font-medium">Dashboard</span>
+                </button>
+                <button id="menu-keywords" class="menu-item w-full flex items-center gap-3 py-3 px-4 rounded-xl text-left transition-all duration-300">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
+                    </svg>
+                    <span class="font-medium">Keywords</span>
+                </button>
+            </nav>
+
+            <!-- 시스템 상태 -->
+            <div class="p-4 border-t border-gray-200 dark:border-dark-border">
+                <div class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">System Status</div>
+                <div class="flex items-center gap-2">
+                    <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span class="text-sm text-gray-700 dark:text-gray-300">Auto-scraper active</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 메인 콘텐츠 -->
+        <main class="flex-1 overflow-y-auto">
+            <!-- 모바일 햄버거 메뉴 -->
+            <button id="mobile-menu-btn" class="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white dark:bg-dark-card rounded-lg shadow-lg">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                </svg>
+            </button>
+
+            <!-- 헤더 -->
+            <header class="sticky top-0 z-40 bg-white/80 dark:bg-dark-bg/80 backdrop-blur-lg border-b border-gray-200 dark:border-dark-border">
+                <div class="px-6 py-6">
+                    <div class="flex items-start justify-between mb-4">
+                        <div>
+                            <h2 class="text-3xl font-bold mb-2">
+                                Latest <span class="bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">Feed</span>
+                            </h2>
+                            <p class="text-gray-500 dark:text-gray-400 text-sm">Real-time updates from K-Pop news and social media.</p>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <!-- 다크모드 토글 -->
+                            <button id="theme-toggle" class="p-2 rounded-full bg-gray-100 dark:bg-dark-card hover:bg-gray-200 dark:hover:bg-dark-border transition-colors">
+                                <svg id="sun-icon" class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                                </svg>
+                                <svg id="moon-icon" class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
+                                </svg>
+                            </button>
+                            <!-- 새로고침 버튼 -->
+                            <button id="refreshBtn" class="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-pink-500 to-purple-500 text-white font-medium hover:shadow-lg hover:shadow-purple-500/50 transition-all duration-300">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                                </svg>
+                                <span>Refresh Feed</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 필터 탭 -->
+                    <div class="flex items-center gap-3 flex-wrap">
+                        <button class="filter-tab active" data-filter="all">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path>
+                            </svg>
+                            <span>All</span>
+                        </button>
+                        <button class="filter-tab" data-filter="news">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"></path>
+                            </svg>
+                            <span>News</span>
+                        </button>
+                        <button class="filter-tab" data-filter="video">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                            </svg>
+                            <span>Videos</span>
+                        </button>
+                        <select id="artist-select" class="ml-auto px-4 py-2 rounded-lg bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
+                            <option value="all">All Artists</option>
+                        </select>
+                    </div>
+                </div>
+            </header>
+
+            <!-- 콘텐츠 영역 -->
+            <div class="p-6">
+                <!-- 로딩 -->
+                <div id="loading" class="flex flex-col items-center justify-center py-20">
+                    <div class="w-12 h-12 border-4 border-purple-200 dark:border-purple-800 border-t-purple-500 dark:border-t-purple-400 rounded-full animate-spin mb-4"></div>
+                    <p class="text-gray-500 dark:text-gray-400">콘텐츠를 불러오는 중...</p>
+                </div>
+
+                <!-- 콘텐츠 그리드 -->
+                <div id="contents" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 hidden">
+                    <!-- 카드들이 동적으로 생성됩니다 -->
+                </div>
+
+                <!-- 빈 상태 -->
+                <div id="emptyState" class="hidden text-center py-20">
+                    <p class="text-2xl mb-2">😔</p>
+                    <p class="text-gray-500 dark:text-gray-400 mb-1">검색 결과가 없습니다.</p>
+                    <p class="text-sm text-gray-400 dark:text-gray-500">다른 키워드로 검색해보세요!</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 모바일 오버레이 -->
+    <div id="mobile-overlay" class="lg:hidden fixed inset-0 bg-black/50 z-40 hidden"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>
