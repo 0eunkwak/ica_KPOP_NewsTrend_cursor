@@ -34,13 +34,24 @@ const keywordsEmpty = document.getElementById('keywords-empty');
 const keywordError = document.getElementById('keyword-error');
 
 // 초기화
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    console.log('[INIT] 애플리케이션 초기화 시작');
     initDarkMode();
     loadKeywords();
     setupEventListeners();
     showPage('dashboard');
-    loadAllContent();
+    
+    // 키워드가 있으면 자동으로 데이터 로드
+    if (trackedKeywords.length > 0) {
+        console.log('[INIT] 저장된 키워드로 데이터 로드:', trackedKeywords);
+        await loadAllContent(false);
+    } else {
+        console.log('[INIT] 저장된 키워드 없음, 기본 키워드로 데이터 로드');
+        await loadAllContent(false);
+    }
+    
     startAutoRefresh();
+    console.log('[INIT] 애플리케이션 초기화 완료');
 });
 
 // 다크모드 초기화
@@ -176,18 +187,23 @@ function saveKeywords() {
 }
 
 // 키워드 추가 처리
-function handleAddKeyword() {
+async function handleAddKeyword() {
+    console.log('[KEYWORD] 키워드 추가 시작');
     const keyword = keywordInput.value.trim();
     
     if (!keyword) {
+        console.warn('[KEYWORD] 빈 키워드 입력');
         showKeywordError('Please enter a keyword');
         return;
     }
     
     if (trackedKeywords.includes(keyword)) {
+        console.warn('[KEYWORD] 중복 키워드:', keyword);
         showKeywordError('This keyword is already added');
         return;
     }
+    
+    console.log('[KEYWORD] 새 키워드 추가:', keyword);
     
     // 키워드 추가
     trackedKeywords.push(keyword);
@@ -201,8 +217,23 @@ function handleAddKeyword() {
     // 목록 업데이트
     renderKeywordsList();
     
-    // 데이터 로드
-    loadContent(keyword);
+    console.log('[KEYWORD] 키워드 목록 업데이트 완료:', trackedKeywords);
+    
+    // 백엔드 동기화 및 데이터 수집
+    console.log('[KEYWORD] 백엔드 동기화 시작...');
+    try {
+        await syncKeywordsToBackend();
+        console.log('[KEYWORD] 백엔드 동기화 완료');
+        
+        // Dashboard로 전환하고 데이터 로드
+        console.log('[KEYWORD] Dashboard로 전환 및 데이터 로드 시작...');
+        showPage('dashboard');
+        await loadAllContent(true); // 강제 새로고침
+        console.log('[KEYWORD] 데이터 로드 완료');
+    } catch (error) {
+        console.error('[KEYWORD] 키워드 추가 후 데이터 로드 실패:', error);
+        showError(`키워드는 추가되었지만 데이터를 불러오는데 실패했습니다: ${error.message}`);
+    }
 }
 
 // 키워드 삭제 처리
@@ -271,23 +302,49 @@ function showKeywordError(message) {
 
 // 백엔드에 키워드 동기화
 async function syncKeywordsToBackend() {
+    console.log('[SYNC] 백엔드 키워드 동기화 시작:', trackedKeywords);
+    
     try {
-        await fetch('/api/keywords', {
+        // 1. 키워드 업데이트
+        console.log('[SYNC] 1단계: 키워드 업데이트 API 호출');
+        const keywordsResponse = await fetch('/api/keywords', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ keywords: trackedKeywords })
         });
         
-        // 키워드 기반으로 데이터 수집
+        if (!keywordsResponse.ok) {
+            throw new Error(`키워드 업데이트 실패: ${keywordsResponse.status}`);
+        }
+        
+        const keywordsData = await keywordsResponse.json();
+        console.log('[SYNC] 키워드 업데이트 응답:', keywordsData);
+        
+        // 2. 데이터 수집 트리거
         if (trackedKeywords.length > 0) {
-            await fetch('/api/refresh', {
+            console.log('[SYNC] 2단계: 데이터 수집 API 호출');
+            const refreshResponse = await fetch('/api/refresh', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ keywords: trackedKeywords })
             });
+            
+            if (!refreshResponse.ok) {
+                throw new Error(`데이터 수집 실패: ${refreshResponse.status}`);
+            }
+            
+            const refreshData = await refreshResponse.json();
+            console.log('[SYNC] 데이터 수집 응답:', refreshData);
+            
+            // 수집이 완료될 때까지 잠시 대기 (백엔드에서 비동기로 처리되므로)
+            console.log('[SYNC] 데이터 수집 완료 대기 중...');
+            await new Promise(resolve => setTimeout(resolve, 2000)); // 2초 대기
         }
+        
+        console.log('[SYNC] 백엔드 동기화 완료');
     } catch (error) {
-        console.error('키워드 동기화 오류:', error);
+        console.error('[SYNC] 키워드 동기화 오류:', error);
+        throw error; // 상위로 에러 전파
     }
 }
 
@@ -302,26 +359,52 @@ function handleRefresh() {
 
 // 모든 콘텐츠 로드
 async function loadAllContent(forceRefresh = false) {
+    console.log('[LOAD] 모든 콘텐츠 로드 시작, forceRefresh:', forceRefresh);
     showLoading();
     
     try {
         // trackedKeywords 사용
         const keywordsToLoad = trackedKeywords.length > 0 ? trackedKeywords : ['BTS', 'BLACKPINK'];
+        console.log('[LOAD] 로드할 키워드:', keywordsToLoad);
         
-        const url = forceRefresh ? '/api/refresh' : '/api/content';
-        const options = forceRefresh ? {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ keywords: keywordsToLoad })
-        } : {};
-        
-        const response = await fetch(url, options);
+        let response;
+        if (forceRefresh) {
+            console.log('[LOAD] 강제 새로고침 모드: /api/refresh 호출');
+            response = await fetch('/api/refresh', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ keywords: keywordsToLoad })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const refreshData = await response.json();
+            console.log('[LOAD] 새로고침 응답:', refreshData);
+            
+            // 수집 완료 대기
+            console.log('[LOAD] 데이터 수집 완료 대기 중...');
+            await new Promise(resolve => setTimeout(resolve, 3000)); // 3초 대기
+            
+            // 수집된 데이터 가져오기
+            console.log('[LOAD] 수집된 데이터 가져오기: /api/content 호출');
+            response = await fetch('/api/content');
+        } else {
+            console.log('[LOAD] 일반 모드: /api/content 호출');
+            response = await fetch('/api/content');
+        }
         
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
         
         const data = await response.json();
+        console.log('[LOAD] 받은 데이터:', {
+            키워드수: Object.keys(data).length,
+            키워드목록: Object.keys(data),
+            총콘텐츠수: Object.values(data).reduce((sum, d) => sum + (d.total_count || 0), 0)
+        });
         
         allData = data;
         
@@ -331,13 +414,15 @@ async function loadAllContent(forceRefresh = false) {
         // 첫 번째 키워드 선택
         if (Object.keys(data).length > 0) {
             currentKeyword = Object.keys(data)[0];
+            console.log('[LOAD] 첫 번째 키워드 선택:', currentKeyword);
             displayContent(data[currentKeyword]);
         } else {
+            console.warn('[LOAD] 수집된 데이터가 없습니다.');
             showEmpty();
             console.warn('⚠️ 수집된 데이터가 없습니다. API 키를 확인하세요.');
         }
     } catch (error) {
-        console.error('❌ 데이터 로드 오류:', error);
+        console.error('[LOAD] 데이터 로드 오류:', error);
         showError(`데이터를 불러올 수 없습니다: ${error.message}`);
         showEmpty();
     } finally {
@@ -347,11 +432,12 @@ async function loadAllContent(forceRefresh = false) {
 
 // 특정 키워드 콘텐츠 로드
 async function loadContent(keyword, forceRefresh = false) {
+    console.log('[LOAD] 특정 키워드 콘텐츠 로드 시작:', keyword, 'forceRefresh:', forceRefresh);
     showLoading();
     
     try {
-        let url = `/api/content?keyword=${encodeURIComponent(keyword)}`;
         if (forceRefresh) {
+            console.log('[LOAD] 강제 새로고침: /api/refresh 호출');
             const refreshResponse = await fetch('/api/refresh', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -362,9 +448,16 @@ async function loadContent(keyword, forceRefresh = false) {
                 throw new Error(`새로고침 실패: ${refreshResponse.status}`);
             }
             
-            url = `/api/content?keyword=${encodeURIComponent(keyword)}`;
+            const refreshData = await refreshResponse.json();
+            console.log('[LOAD] 새로고침 응답:', refreshData);
+            
+            // 수집 완료 대기
+            console.log('[LOAD] 데이터 수집 완료 대기 중...');
+            await new Promise(resolve => setTimeout(resolve, 3000)); // 3초 대기
         }
         
+        const url = `/api/content?keyword=${encodeURIComponent(keyword)}`;
+        console.log('[LOAD] 데이터 가져오기:', url);
         const response = await fetch(url);
         
         if (!response.ok) {
@@ -372,6 +465,13 @@ async function loadContent(keyword, forceRefresh = false) {
         }
         
         const data = await response.json();
+        console.log('[LOAD] 받은 데이터:', {
+            키워드: keyword,
+            총콘텐츠수: data.total_count || 0,
+            유튜브수: data.youtube_count || 0,
+            뉴스수: data.news_count || 0,
+            콘텐츠배열길이: data.contents ? data.contents.length : 0
+        });
         
         allData[keyword] = data;
         currentKeyword = keyword;
@@ -380,10 +480,10 @@ async function loadContent(keyword, forceRefresh = false) {
         
         // 결과가 없으면 경고
         if (!data.contents || data.contents.length === 0) {
-            console.warn(`⚠️ '${keyword}'에 대한 콘텐츠가 없습니다. API 키를 확인하세요.`);
+            console.warn(`[LOAD] '${keyword}'에 대한 콘텐츠가 없습니다. API 키를 확인하세요.`);
         }
     } catch (error) {
-        console.error('❌ 콘텐츠 로드 오류:', error);
+        console.error('[LOAD] 콘텐츠 로드 오류:', error);
         showError(`콘텐츠를 불러올 수 없습니다: ${error.message}`);
         showEmpty();
     } finally {
@@ -444,7 +544,14 @@ function displayAllContent() {
 
 // 콘텐츠 표시
 function displayContent(data) {
+    console.log('[DISPLAY] 콘텐츠 표시 시작:', {
+        데이터존재: !!data,
+        콘텐츠배열존재: !!(data && data.contents),
+        콘텐츠수: data && data.contents ? data.contents.length : 0
+    });
+    
     if (!data || !data.contents || data.contents.length === 0) {
+        console.warn('[DISPLAY] 표시할 콘텐츠가 없습니다.');
         showEmpty();
         return;
     }
@@ -452,14 +559,17 @@ function displayContent(data) {
     hideEmpty();
     
     // 콘텐츠 카드 생성
+    console.log('[DISPLAY] 카드 생성 시작, 콘텐츠 수:', data.contents.length);
     contents.innerHTML = '';
     data.contents.forEach((content, index) => {
         const card = createContentCard(content, index);
         contents.appendChild(card);
     });
     
+    console.log('[DISPLAY] 카드 생성 완료, 생성된 카드 수:', contents.children.length);
     contents.classList.remove('hidden');
     filterContent();
+    console.log('[DISPLAY] 콘텐츠 표시 완료');
 }
 
 // 콘텐츠 필터링
