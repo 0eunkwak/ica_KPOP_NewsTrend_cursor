@@ -20,9 +20,9 @@ class NewsCollector:
         self.base_url = 'https://openapi.naver.com/v1/search/news.json'
         
         if not self.client_id or not self.client_secret:
-            print("❌ 네이버 API 인증 정보가 설정되지 않았습니다. .env 파일에 NAVER_CLIENT_ID와 NAVER_CLIENT_SECRET을 설정하세요.")
+            print("[ERROR] 네이버 API 인증 정보가 설정되지 않았습니다. .env 파일에 NAVER_CLIENT_ID와 NAVER_CLIENT_SECRET을 설정하세요.")
         else:
-            print(f"✅ 네이버 API 초기화 성공 (Client ID 길이: {len(self.client_id)} 문자)")
+            print(f"[OK] 네이버 API 초기화 성공 (Client ID 길이: {len(self.client_id)} 문자)")
     
     def search(self, keyword, max_results=50):
         """
@@ -52,14 +52,14 @@ class NewsCollector:
         }
         
         try:
-            print(f"🔍 네이버 뉴스 검색 시작: '{keyword}'")
+            print(f"[SEARCH] 네이버 뉴스 검색 시작: '{keyword}'")
             response = requests.get(self.base_url, headers=headers, params=params, timeout=10)
             response.raise_for_status()
             
             data = response.json()
             items = data.get('items', [])
             total = data.get('total', 0)
-            print(f"📊 네이버 API 응답: {len(items)}개 항목 (전체: {total}개)")
+            print(f"[INFO] 네이버 API 응답: {len(items)}개 항목 (전체: {total}개)")
             
             results = []
             for item in items:
@@ -71,7 +71,7 @@ class NewsCollector:
                     published_at = datetime.strptime(pub_date, '%a, %d %b %Y %H:%M:%S %z')
                 except Exception as parse_error:
                     # 파싱 실패 시 현재 시간으로 설정 (필터링됨)
-                    print(f"⚠️ 날짜 파싱 실패: {pub_date} - {parse_error}")
+                    print(f"[WARNING] 날짜 파싱 실패: {pub_date} - {parse_error}")
                     published_at = datetime.now() - timedelta(hours=25)
                 
                 # 24시간 이내 확인
@@ -89,11 +89,11 @@ class NewsCollector:
                     }
                     results.append(news_data)
             
-            print(f"✅ 네이버 뉴스 검색 완료: '{keyword}' - {len(results)}개 결과 (24시간 이내)")
+            print(f"[OK] 네이버 뉴스 검색 완료: '{keyword}' - {len(results)}개 결과 (24시간 이내)")
             return results
             
         except requests.exceptions.HTTPError as e:
-            print(f"❌ 네이버 뉴스 API HTTP 오류: {e.response.status_code} - {e.response.text}")
+            print(f"[ERROR] 네이버 뉴스 API HTTP 오류: {e.response.status_code} - {e.response.text}")
             try:
                 error_data = e.response.json()
                 print(f"   오류 상세: {error_data}")
@@ -101,10 +101,10 @@ class NewsCollector:
                 pass
             return []
         except requests.exceptions.RequestException as e:
-            print(f"❌ 네이버 뉴스 API 요청 오류: {e}")
+            print(f"[ERROR] 네이버 뉴스 API 요청 오류: {e}")
             return []
         except Exception as e:
-            print(f"❌ 뉴스 검색 중 오류 발생: {e}")
+            print(f"[ERROR] 뉴스 검색 중 오류 발생: {e}")
             import traceback
             traceback.print_exc()
             return []
