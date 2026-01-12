@@ -48,6 +48,9 @@ collector = DataCollector()
 # 캐시된 데이터
 cached_data = {}
 
+# 추적 중인 키워드 (기본값은 Config에서 가져옴)
+tracked_keywords = Config.DEFAULT_KEYWORDS.copy()
+
 def collect_and_cache(keywords):
     """데이터 수집 및 캐시 업데이트"""
     global cached_data
@@ -62,8 +65,8 @@ def collect_and_cache(keywords):
 
 def scheduled_update():
     """스케줄된 업데이트 실행"""
-    keywords = Config.DEFAULT_KEYWORDS
-    collect_and_cache(keywords)
+    global tracked_keywords
+    collect_and_cache(tracked_keywords)
 
 # 스케줄러 설정
 schedule.every(Config.UPDATE_INTERVAL).minutes.do(scheduled_update)
@@ -81,9 +84,10 @@ scheduler_thread.start()
 # 초기 데이터 수집 (별도 스레드에서 실행하여 서버 시작을 블로킹하지 않음)
 def initial_data_collection():
     """초기 데이터 수집 (별도 스레드)"""
+    global tracked_keywords
     print("초기 데이터 수집 중...")
     try:
-        collect_and_cache(Config.DEFAULT_KEYWORDS)
+        collect_and_cache(tracked_keywords)
     except Exception as e:
         print(f"초기 데이터 수집 실패 (서버는 계속 실행됩니다): {e}")
         print("API 키가 설정되지 않았을 수 있습니다. .env 파일을 확인하세요.")
@@ -134,9 +138,34 @@ def get_status():
 @app.route('/api/refresh', methods=['POST'])
 def refresh_data():
     """수동 데이터 갱신 API"""
-    keywords = request.json.get('keywords', Config.DEFAULT_KEYWORDS) if request.json else Config.DEFAULT_KEYWORDS
+    global tracked_keywords
+    if request.json and 'keywords' in request.json:
+        keywords = request.json.get('keywords', [])
+        if keywords:
+            tracked_keywords = keywords
+    else:
+        keywords = tracked_keywords
+    
     collect_and_cache(keywords)
     return jsonify({'message': '데이터 갱신 완료', 'keywords': keywords})
+
+@app.route('/api/keywords', methods=['GET', 'POST'])
+def manage_keywords():
+    """키워드 관리 API"""
+    global tracked_keywords
+    
+    if request.method == 'GET':
+        return jsonify({'keywords': tracked_keywords})
+    
+    elif request.method == 'POST':
+        data = request.json
+        if 'keywords' in data:
+            tracked_keywords = data['keywords']
+            # 키워드 변경 시 데이터 수집
+            collect_and_cache(tracked_keywords)
+            return jsonify({'message': '키워드 업데이트 완료', 'keywords': tracked_keywords})
+        else:
+            return jsonify({'error': 'keywords 필드가 필요합니다'}), 400
 
 if __name__ == '__main__':
     print(f"서버 시작: http://localhost:{Config.PORT}")
