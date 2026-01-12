@@ -316,6 +316,11 @@ async function loadAllContent(forceRefresh = false) {
         } : {};
         
         const response = await fetch(url, options);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
         const data = await response.json();
         
         allData = data;
@@ -329,9 +334,11 @@ async function loadAllContent(forceRefresh = false) {
             displayContent(data[currentKeyword]);
         } else {
             showEmpty();
+            console.warn('⚠️ 수집된 데이터가 없습니다. API 키를 확인하세요.');
         }
     } catch (error) {
-        console.error('데이터 로드 오류:', error);
+        console.error('❌ 데이터 로드 오류:', error);
+        showError(`데이터를 불러올 수 없습니다: ${error.message}`);
         showEmpty();
     } finally {
         hideLoading();
@@ -345,27 +352,56 @@ async function loadContent(keyword, forceRefresh = false) {
     try {
         let url = `/api/content?keyword=${encodeURIComponent(keyword)}`;
         if (forceRefresh) {
-            await fetch('/api/refresh', {
+            const refreshResponse = await fetch('/api/refresh', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ keywords: [keyword] })
             });
+            
+            if (!refreshResponse.ok) {
+                throw new Error(`새로고침 실패: ${refreshResponse.status}`);
+            }
+            
             url = `/api/content?keyword=${encodeURIComponent(keyword)}`;
         }
         
         const response = await fetch(url);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
         const data = await response.json();
         
         allData[keyword] = data;
         currentKeyword = keyword;
         
         displayContent(data);
+        
+        // 결과가 없으면 경고
+        if (!data.contents || data.contents.length === 0) {
+            console.warn(`⚠️ '${keyword}'에 대한 콘텐츠가 없습니다. API 키를 확인하세요.`);
+        }
     } catch (error) {
-        console.error('콘텐츠 로드 오류:', error);
+        console.error('❌ 콘텐츠 로드 오류:', error);
+        showError(`콘텐츠를 불러올 수 없습니다: ${error.message}`);
         showEmpty();
     } finally {
         hideLoading();
     }
+}
+
+// 에러 메시지 표시
+function showError(message) {
+    // 간단한 알림 (나중에 더 나은 UI로 개선 가능)
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+    errorDiv.textContent = message;
+    document.body.appendChild(errorDiv);
+    
+    setTimeout(() => {
+        errorDiv.remove();
+    }, 5000);
 }
 
 // 아티스트 선택 옵션 업데이트
@@ -533,8 +569,23 @@ async function checkStatus() {
         const response = await fetch('/api/status');
         const status = await response.json();
         console.log('서비스 상태:', status);
+        
+        // API 키 상태 확인 및 경고
+        if (status.api_keys) {
+            const missing = [];
+            if (status.api_keys.youtube === 'missing') missing.push('YouTube API Key');
+            if (status.api_keys.naver_id === 'missing') missing.push('Naver Client ID');
+            if (status.api_keys.naver_secret === 'missing') missing.push('Naver Client Secret');
+            
+            if (missing.length > 0) {
+                console.warn('⚠️ API 키가 설정되지 않았습니다:', missing.join(', '));
+            }
+        }
+        
+        return status;
     } catch (error) {
         console.error('상태 확인 오류:', error);
+        return null;
     }
 }
 
