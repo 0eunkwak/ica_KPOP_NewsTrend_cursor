@@ -26,9 +26,13 @@ import threading
 try:
     from backend.data_collector import DataCollector
     from backend.config import Config
+    from backend.utils import generate_content_hash
+    from backend.blacklist_store import get_blacklist, add_to_blacklist, remove_from_blacklist
 except ImportError:
     from data_collector import DataCollector
     from config import Config
+    from utils import generate_content_hash
+    from blacklist_store import get_blacklist, add_to_blacklist, remove_from_blacklist
 
 app = Flask(__name__, static_folder='../frontend', static_url_path='')
 CORS(app)
@@ -156,6 +160,51 @@ def get_status():
             'naver_id': 'configured' if Config.NAVER_CLIENT_ID else 'missing',
             'naver_secret': 'configured' if Config.NAVER_CLIENT_SECRET else 'missing'
         }
+    })
+
+@app.route('/api/admin/blacklist', methods=['GET'])
+def get_blacklist_api():
+    """관리자용 블랙리스트 조회 API"""
+    return jsonify(get_blacklist())
+
+@app.route('/api/admin/block', methods=['POST'])
+def block_content():
+    """관리자용 콘텐츠 차단 API"""
+    data = request.json or {}
+    content_id = data.get('content_id')
+    url = data.get('url')
+    title = data.get('title', '')
+
+    if not content_id and (title or url):
+        content_id = generate_content_hash(title, url or '')
+
+    if not content_id and not url:
+        return jsonify({'error': 'content_id 또는 url이 필요합니다'}), 400
+
+    updated = add_to_blacklist(content_id=content_id, url=url)
+    return jsonify({
+        'message': '블랙리스트에 추가되었습니다',
+        'content_id': content_id,
+        'url': url,
+        'blacklist': updated
+    })
+
+@app.route('/api/admin/unblock', methods=['POST'])
+def unblock_content():
+    """관리자용 콘텐츠 차단 해제 API"""
+    data = request.json or {}
+    content_id = data.get('content_id')
+    url = data.get('url')
+
+    if not content_id and not url:
+        return jsonify({'error': 'content_id 또는 url이 필요합니다'}), 400
+
+    updated = remove_from_blacklist(content_id=content_id, url=url)
+    return jsonify({
+        'message': '블랙리스트에서 제거되었습니다',
+        'content_id': content_id,
+        'url': url,
+        'blacklist': updated
     })
 
 @app.route('/api/refresh', methods=['POST'])
