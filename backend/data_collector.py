@@ -7,11 +7,15 @@ try:
     from .news_collector import NewsCollector
     from .deduplicator import Deduplicator
     from .config import Config
+    from .utils import generate_content_hash
+    from .blacklist_store import is_blocked
 except ImportError:
     from youtube_collector import YouTubeCollector
     from news_collector import NewsCollector
     from deduplicator import Deduplicator
     from config import Config
+    from utils import generate_content_hash
+    from blacklist_store import is_blocked
 
 class DataCollector:
     """데이터 수집 통합 클래스"""
@@ -83,15 +87,28 @@ class DataCollector:
         # 중복 제거
         all_results = youtube_results + news_results
         unique_results = self.deduplicator.remove_duplicates(all_results)
+
+        # 콘텐츠 ID 생성 + 블랙리스트 필터링
+        filtered_results = []
+        for result in unique_results:
+            title = result.get("title", "")
+            url = result.get("url", "")
+            content_id = generate_content_hash(title, url)
+            result["content_id"] = content_id
+
+            if is_blocked(content_id=content_id, url=url):
+                continue
+
+            filtered_results.append(result)
         
         # 각 콘텐츠에 키워드 정보 추가
-        for result in unique_results:
+        for result in filtered_results:
             result['keyword_en'] = keyword_en
             result['keyword_ko'] = keyword_ko
             result['keyword_display'] = keyword_display
         
         # 날짜순 정렬 (최신순)
-        unique_results.sort(
+        filtered_results.sort(
             key=lambda x: x.get('published_at', ''),
             reverse=True
         )
@@ -100,10 +117,10 @@ class DataCollector:
             'keyword': keyword_display,
             'keyword_en': keyword_en,
             'keyword_ko': keyword_ko,
-            'total_count': len(unique_results),
+            'total_count': len(filtered_results),
             'youtube_count': len(youtube_results),
             'news_count': len(news_results),
-            'contents': unique_results
+            'contents': filtered_results
         }
     
     def collect_multiple_keywords(self, keywords):
