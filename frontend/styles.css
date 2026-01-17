@@ -136,6 +136,34 @@ body {
     background: #ef4444;
 }
 
+/* 카드 삭제 버튼 */
+.card-delete-btn {
+    position: absolute;
+    top: 0.75rem;
+    left: 0.75rem;
+    width: 32px;
+    height: 32px;
+    border-radius: 9999px;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.content-card:hover .card-delete-btn {
+    opacity: 1;
+    transform: scale(1.05);
+}
+
+.card-delete-btn:hover {
+    background: rgba(239, 68, 68, 0.9);
+}
+
 /* 카드 본문 */
 .card-body {
     padding: 1rem;
