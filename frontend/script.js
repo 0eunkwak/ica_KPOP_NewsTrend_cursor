@@ -790,6 +790,11 @@ function createContentCard(content, index) {
         <div class="relative">
             ${thumbnail}
             <div class="card-badge ${badgeClass}">${badgeText}</div>
+            <button class="card-delete-btn" title="Delete content" data-content-id="${content.content_id || ''}" data-url="${escapeHtml(content.url || '')}" data-title="${escapeHtml(content.title || '')}">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                </svg>
+            </button>
         </div>
         <div class="card-body">
             ${keywordBadge}
@@ -813,8 +818,47 @@ function createContentCard(content, index) {
     card.addEventListener('click', () => {
         window.open(content.url, '_blank', 'noopener,noreferrer');
     });
+
+    // delete button handler
+    const deleteBtn = card.querySelector('.card-delete-btn');
+    if (deleteBtn) {
+        deleteBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const contentId = deleteBtn.getAttribute('data-content-id');
+            const url = deleteBtn.getAttribute('data-url');
+            const title = deleteBtn.getAttribute('data-title');
+
+            const confirmed = confirm('이 콘텐츠를 삭제(차단)하시겠습니까?');
+            if (!confirmed) {
+                return;
+            }
+
+            try {
+                await blockContent({ content_id: contentId, url, title });
+                card.remove();
+            } catch (error) {
+                console.error('[ADMIN] 콘텐츠 차단 실패:', error);
+                showError(`삭제 실패: ${error.message}`);
+            }
+        });
+    }
     
     return card;
+}
+
+// 관리자: 콘텐츠 차단
+async function blockContent(payload) {
+    const response = await fetch('/api/admin/block', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+        throw new Error(`차단 실패: ${response.status}`);
+    }
+
+    return response.json();
 }
 
 // HTML 이스케이프
